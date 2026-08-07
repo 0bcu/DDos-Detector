@@ -264,7 +264,8 @@ VERSION = "1.1"
 GITHUB = "github.com/0bcu/DDos-Detector"
 
 BANNER = [
-    "  /$$$$$$  /$$                           /$$$_  $$| $$",
+    "  /$$$$$$  /$$                           ",
+    " /$$$_  $$| $$                           ",
     "| $$$$\\ $$| $$$$$$$   /$$$$$$$ /$$   /$$",
     "| $$ $$ $$| $$__  $$ /$$_____/| $$  | $$",
     "| $$\\ $$$$| $$  \\ $$| $$      | $$  | $$",
@@ -338,9 +339,7 @@ def render_dashboard(d, cur, findings):
     lines.append(_top_line("", width))
     if width >= 80:
         for art in BANNER:
-            art = art.rstrip()
-            pad = (width - 2 - len(art)) // 2
-            lines.append(_row(f"{DIM}{' ' * max(pad, 0)}{art}{RESET}", width))
+            lines.append(_row(f"{DIM}  {art.rstrip()}{RESET}", width))
     lines.append(_row(f"{BOLD}{_align('D D o S   D E T E C T O R', 36)}{RESET}"
                       f"{DIM}v{VERSION}{RESET}", width))
     lines.append(_row(f"{DIM}{_align(GITHUB, 36)}{RESET}"
