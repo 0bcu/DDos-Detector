@@ -1,132 +1,74 @@
+<div align="center">
+
+```
+  /$$$$$$  /$$
+ /$$$_  $$| $$
+| $$$$\ $$| $$$$$$$   /$$$$$$$ /$$   /$$
+| $$ $$ $$| $$__  $$ /$$_____/| $$  | $$
+| $$\ $$$$| $$  \ $$| $$      | $$  | $$
+| $$ \ $$$| $$  | $$| $$      | $$  | $$
+|  $$$$$$/| $$$$$$$/|  $$$$$$$|  $$$$$$/
+ \______/ |_______/  \_______/ \______/
+```
+
 # DDos Detector
 
-Passive flood detection for Linux. It samples kernel counters and TCP state
-tables from `/proc`, computes rates, and flags anomalies that are typical of
-flooding attacks — no dependencies beyond the Python standard library, no
-root privileges required for basic operation.
+Passive flood detection for Linux — no dependencies, no root required.
 
-The detector does not block anything. It watches, reports and lets you
-decide. Run it on the box under attack, or on a mirrored port of the
-gateway.
+</div>
 
 ---
 
-## What it detects
+## What it is
 
-| Finding       | Signal used                                        | Typical cause        |
-|---------------|----------------------------------------------------|----------------------|
-| `traffic`     | packets/s and bytes/s per interface, rx drops      | volumetric flood     |
-| `syn_flood`   | sockets stuck in `SYN_RECV`                        | SYN flood            |
-| `conn_flood`  | total established/in-flight TCP sockets            | connection flood     |
-| `distributed` | number of distinct source IPs (TCP + UDP)          | botnet / reflection  |
-| `conn_rate`   | new connections appearing per second               | connection rate flood|
+`DDos Detector` samples kernel counters and TCP state tables from `/proc`,
+computes rates between samples, and flags the anomalies that show up when a
+flooding attack is in progress:
 
-All thresholds are configurable, because "normal" looks different on a
-desktop and on a busy server.
+- throughput spikes per interface (packets/s, bytes/s, drops)
+- `SYN_RECV` explosion (SYN flood)
+- connection count explosion (connection flood)
+- large numbers of distinct source IPs (distributed attack)
+- high new-connection rate
+
+It is **passive**: it never sends traffic, never blocks anything, and never
+changes system state. Kill it and the machine is exactly as it was.
+
+## Requirements
+
+| Requirement | Detail                                   |
+|-------------|------------------------------------------|
+| OS          | Linux (reads `/proc/net/*`)              |
+| Python      | 3.6+ (standard library only)             |
+| Root        | not required                             |
 
 ---
 
-## Installation
+## Quick start
 
 ```bash
 git clone https://github.com/0bcu/DDos-Detector.git
 cd DDos-Detector
-```
 
-No `pip install`. Python 3.6+ is enough.
-
----
-
-## Usage
-
-### Live dashboard (default)
-
-```bash
 python3 detector.py
 ```
 
-Full-screen terminal UI, refreshed every second (see the Terminal
-interface section below for the full layout).
+That's it. A live dashboard opens in the terminal, refreshed every second.
+Press `Ctrl-C` to exit — the terminal is restored exactly as it was.
 
-### Monitor one interface
-
-```bash
-python3 detector.py -i eth0
-```
-
-### Lower or raise thresholds
-
-```bash
-# sensitive: anything above 5k pkt/s or 300 half-open sockets
-python3 detector.py --pkt-thr 5000 --syn-thr 300
-
-# relaxed: busy server
-python3 detector.py --pkt-thr 500000 --conn-thr 200000 --newconn-thr 5000
-```
-
-### Log mode (systemd, cron, daemons)
-
-No dashboard redraw — plain timestamped lines, safe to redirect:
-
-```bash
-python3 detector.py --no-dashboard -t 2 | tee -a ddos.log
-```
-
-### Persistent alert log (JSON lines)
-
-Every alert is appended to the file as one JSON object per line, ready for
-parsing or feeding into a SIEM:
-
-```bash
-python3 detector.py -o alerts.jsonl
-```
-
-Example alert line:
-
-```json
-{"ts": 1783419842, "kind": "syn_flood", "syn_recv": 6240}
-```
-
-Alert kinds: `traffic`, `syn_flood`, `conn_flood`, `distributed`,
-`conn_rate`.
-
----
-
-## Options
-
-| Flag                | Default     | Meaning                                   |
-|---------------------|-------------|-------------------------------------------|
-| `-i, --iface`       | all         | monitor only this interface               |
-| `--pkt-thr`         | 20000       | packets/s threshold                       |
-| `--byte-thr`        | 50000000    | bytes/s threshold (50 MB/s)               |
-| `--syn-thr`         | 500         | `SYN_RECV` sockets threshold              |
-| `--conn-thr`        | 30000       | total connections threshold               |
-| `--src-thr`         | 1000        | distinct source IPs threshold             |
-| `--newconn-thr`     | 2000        | new connections/s threshold               |
-| `-t, --interval`    | 1.0         | sampling interval in seconds              |
-| `-o, --out FILE`    | -           | append alerts as JSON lines to FILE       |
-| `--no-dashboard`    | off         | plain log output, no screen redraw        |
-
----
-
-## Terminal interface
-
-The default run opens the terminal **alternate screen buffer** (like htop
-or btop): a single stable frame that is redrawn in place, so scrolling the
-wheel never leaves duplicated frames, and Ctrl-C restores your shell
-prompt exactly as it was. Neutral gray/white colors, red and green are
-reserved for status and alerts:
+## Interface
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│              /$$$$$$  /$$       /$$$_  $$| $$                        │
-│             | $$$$\ $$| $$$$$$$ /$$$$$$$ /$$   /$$                  │
-│             | $$ $$ $$| $$__  $$ /$$_____/| $$  | $$                 │
-│             | $$\ $$$$| $$  \ $$| $$      | $$  | $$                 │
-│             | $$ \ $$$| $$  | $$| $$      | $$  | $$                 │
-│             |  $$$$$$/| $$$$$$$/|  $$$$$$$|  $$$$$$/                 │
-│              \______/ |_______/ \_______/ \______/                   │
-│D D o S   D E T E C T O R           v1.1                              │
+┌──────────────────────────────────────────────────────────────────────┐
+│    /$$$$$$  /$$                                                      │
+│   /$$$_  $$| $$                                                      │
+│  | $$$$\ $$| $$$$$$$   /$$$$$$$ /$$   /$$                            │
+│  | $$ $$ $$| $$__  $$ /$$_____/| $$  | $$                            │
+│  | $$\ $$$$| $$  \ $$| $$      | $$  | $$                            │
+│  | $$ \ $$$| $$  | $$| $$      | $$  | $$                            │
+│  |  $$$$$$/| $$$$$$$/|  $$$$$$$|  $$$$$$/                            │
+│   \______/ |_______/  \_______/ \______/                             │
+│ D D o S   D E T E C T O R           v1.1                             │
 │ github.com/0bcu/DDos-Detector       sampling every 1.0s              │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ● NORMAL      connections   231                                      │
@@ -147,16 +89,110 @@ reserved for status and alerts:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- ASCII banner rendered in the header (≥80 columns), hidden on narrow
-  terminals to avoid overflow
-- status dot: green **● NORMAL**, red **● UNDER ATTACK**
-- utilization gauges per interface, rows turn red over threshold
-- TCP state table with inline `⚠ SYN flood` markers
-- recent alert feed with timestamps and JSON payloads
-- footer always shows the project link and current thresholds
+The UI runs in the terminal's **alternate screen buffer** (the same
+technique htop and btop use):
 
-The layout adapts to the terminal width (80+ columns) and works in any
-terminal emulator.
+- a single stable frame is redrawn in place — scrolling the wheel never
+  produces duplicated frames
+- neutral gray/white palette; red and green are reserved for status
+- the header banner is hidden automatically on narrow terminals
+  (< 80 columns) so the layout never breaks
+
+Sections:
+
+| Section      | Shows                                                     |
+|--------------|-----------------------------------------------------------|
+| Status       | NORMAL / UNDER ATTACK, total connections, new conn/s, distinct source IPs |
+| Interfaces   | per-interface rx/tx packets and bytes per second, drops, utilization gauge |
+| TCP states   | socket count per state, with `⚠ SYN flood` marker         |
+| Alerts       | last alerts with timestamp and JSON payload               |
+| Footer       | active thresholds, project link, quit hint                |
+
+---
+
+## Detection
+
+| Finding       | Signal                                        | Typical cause       |
+|---------------|-----------------------------------------------|---------------------|
+| `traffic`     | packets/s or bytes/s over threshold, rx drops | volumetric flood    |
+| `syn_flood`   | sockets stuck in `SYN_RECV`                   | SYN flood           |
+| `conn_flood`  | total connections over threshold              | connection flood    |
+| `distributed` | distinct source IPs over threshold            | botnet / reflection |
+| `conn_rate`   | new connections per second over threshold     | rate flood          |
+
+Every signal has its own threshold; when any of them fires, an alert is
+logged and the status flips to **UNDER ATTACK** until the metric drops back
+below the threshold.
+
+---
+
+## Commands
+
+### Monitor everything
+
+```bash
+python3 detector.py
+```
+
+### Monitor a single interface
+
+```bash
+python3 detector.py -i eth0
+```
+
+### Tune the detection thresholds
+
+```bash
+# sensitive profile - catches floods early
+python3 detector.py --pkt-thr 5000 --syn-thr 300 --newconn-thr 500
+
+# relaxed profile - busy server under constant load
+python3 detector.py --pkt-thr 500000 --conn-thr 200000 --newconn-thr 5000
+```
+
+### Faster / slower sampling
+
+```bash
+python3 detector.py -t 0.5      # twice per second
+python3 detector.py -t 5        # one sample every 5 seconds
+```
+
+### Save alerts to a JSON log
+
+```bash
+python3 detector.py -o alerts.jsonl
+```
+
+Each alert is one JSON object per line:
+
+```json
+{"ts": 1783419842, "kind": "syn_flood", "syn_recv": 6240}
+```
+
+### Run without the dashboard (systemd, cron, pipes)
+
+```bash
+python3 detector.py --no-dashboard -t 2 | tee -a ddos.log
+```
+
+Plain timestamped log lines, safe to redirect or pipe.
+
+---
+
+## Options
+
+| Flag             | Default    | Meaning                                   |
+|------------------|------------|-------------------------------------------|
+| `-i, --iface`    | all        | monitor only this interface               |
+| `--pkt-thr`      | 20000      | packets/s threshold                       |
+| `--byte-thr`     | 50000000   | bytes/s threshold (50 MB/s)               |
+| `--syn-thr`      | 500        | `SYN_RECV` sockets threshold              |
+| `--conn-thr`     | 30000      | total connections threshold               |
+| `--src-thr`      | 1000       | distinct source IPs threshold             |
+| `--newconn-thr`  | 2000       | new connections/s threshold               |
+| `-t, --interval` | 1.0        | sampling interval in seconds              |
+| `-o, --out FILE` | -          | append alerts as JSON lines to FILE       |
+| `--no-dashboard` | off        | plain log output, no screen redraw        |
 
 ---
 
@@ -164,22 +200,23 @@ terminal emulator.
 
 Every interval the detector reads three kernel interfaces:
 
-- `/proc/net/dev` — per-interface packet/byte/drop counters
-- `/proc/net/tcp` — TCP socket table with connection states
-- `/proc/net/udp` — UDP socket table, used for source counting
+| File              | Provides                                              |
+|-------------------|-------------------------------------------------------|
+| `/proc/net/dev`   | per-interface packet/byte/drop counters               |
+| `/proc/net/tcp`   | TCP socket table with connection states               |
+| `/proc/net/udp`   | UDP socket table, used for source counting            |
 
-Rates are computed between consecutive samples, so it is immune to counter
-wraparound and requires no daemonization: kill it and the box is untouched.
-Sending `Ctrl-C` stops it cleanly.
+Rates are computed between consecutive samples, which makes the detector
+immune to counter wraparound. Reading the TCP state table is fast even with
+thousands of sockets; on a busy server, use `-t 2` to lower the sampling
+cost.
 
 Notes:
 
-- Interfaces that are virtual (`lo`, `veth*`, `br-*`, `docker*`, `tun*`,
-  `virbr*`) are skipped by default.
-- Reading the TCP state table is fast even with thousands of sockets; a
-  busy server may want `-t 2` to reduce sampling cost.
-- For full packet-level analysis (payloads, flags, spoofed sources), pair
-  it with `tcpdump` on the gateway's mirrored port.
+- virtual interfaces (`lo`, `veth*`, `br-*`, `docker*`, `tun*`,
+  `virbr*`) are skipped by default
+- for packet-level analysis (payloads, flags, spoofed sources), pair it
+  with `tcpdump` on a mirrored port
 
 ---
 
