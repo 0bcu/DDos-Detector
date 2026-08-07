@@ -167,6 +167,7 @@ class Detector:
         self.prev = None
         self.alerts = deque(maxlen=8)
         self.attack_since = None
+        self.render = render_dashboard
 
     def snapshot(self):
         dev = read_dev()
@@ -250,6 +251,9 @@ class Detector:
             self._render(cur, findings)
             self.prev = cur
             time.sleep(self.interval)
+
+    def _render(self, cur, findings):
+        self.render(self, cur, findings)
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +381,7 @@ def main():
     try:
         log.info("DDoS detector started (interval=%ss)", args.interval)
         if not sys.stdout.isatty() or args.no_dashboard:
-            d._render = lambda c, f: None
+            d.render = lambda self, cur, findings: None
         d.run()
     except KeyboardInterrupt:
         print()
