@@ -140,6 +140,27 @@ Alert kinds: `traffic`, `syn_flood`, `conn_flood`, `distributed`,
 
 ---
 
+## Graphical interface
+
+A Tkinter dashboard with the same detection engine behind a white/black
+UI. Shows live traffic per interface, TCP state counts, summary counters
+and a scrolling alert feed, with all thresholds editable at runtime:
+
+```bash
+python3 gui.py        # or: python3 gui.py -i eth0
+```
+
+- status banner: green **NORMAL**, red **UNDER ATTACK**
+- interface table with rates per second (rows turn red over threshold)
+- TCP state table with inline `SYN flood` markers
+- summary cards: connections, new conn/s, distinct source IPs (tcp/udp)
+- threshold fields + sampling interval editable while running
+- **START / STOP** button controls the sampler thread
+
+Tkinter ships with Python — no extra install.
+
+---
+
 ## How it works
 
 Every interval the detector reads three kernel interfaces:
