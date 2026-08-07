@@ -45,39 +45,8 @@ No `pip install`. Python 3.6+ is enough.
 python3 detector.py
 ```
 
-Full-screen terminal UI, refreshed every second:
-
-```
-DDoS DETECTOR  sampling every 1.0s | thresholds: pkt/s>20K bytes/s>50.0M syn>500 conn>30.0K src>1.0K new/s>2.0K
-status: NORMAL   press Ctrl-C to stop
-
-interface    rx pkt/s    tx pkt/s    rx/s       tx/s       drop/s
-eth0         1240.2      908.7       2.1 MB     812.4 KB   0
-
-tcp state    count    note
-LISTEN       12
-SYN_RECV     3
-ESTABLISHED  87
-TIME_WAIT    141
-
-connections  231
-new conn/s   14.2
-distinct src ip  9 (8 tcp / 1 udp)
-```
-
-When a threshold is crossed, the status flips to **UNDER ATTACK**, the
-offending rows turn red, and the alert is listed in a `recent alerts`
-section:
-
-```
-status: UNDER ATTACK   press Ctrl-C to stop
-
-tcp state    count    note
-SYN_RECV     6240     SYN flood
-
-recent alerts
-  23:58:11  syn_flood  {"syn_recv": 6240}
-```
+Full-screen terminal UI, refreshed every second (see the Terminal
+interface section below for the full layout).
 
 ### Monitor one interface
 
@@ -140,24 +109,42 @@ Alert kinds: `traffic`, `syn_flood`, `conn_flood`, `distributed`,
 
 ---
 
-## Graphical interface
+## Terminal interface
 
-A Tkinter dashboard with the same detection engine behind a white/black
-UI. Shows live traffic per interface, TCP state counts, summary counters
-and a scrolling alert feed, with all thresholds editable at runtime:
+The default run draws a full-screen terminal dashboard with box-drawing
+borders, per-interface utilization gauges and live counters — no external
+tooling, just ANSI output:
 
-```bash
-python3 gui.py        # or: python3 gui.py -i eth0
+```
+┌────────────────────────────── DDoS DETECTOR v1.1 ───────────────────────────────┐
+│ github.com/0bcu/DDos-Detector          sampling every 1.0s                       │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ ● NORMAL      connections   231                                                  │
+│ new conn/s    14.2                                                                │
+│ distinct src ip  9 (8 tcp / 1 udp)                                                │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ interface      rx pkt/s   tx pkt/s   rx/s      tx/s      drop/s                  │
+│ eth0  ██░░░░░░  1240.1    908.7      2.1 MB    812.4 KB  0                       │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ tcp state      count      note                                                   │
+│ SYN_RECV       6240       ⚠ SYN flood                                             │
+│ ESTABLISHED    87                                                                 │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ recent alerts                                                                     │
+│  23:58:11  SYN_FLOOD    {"syn_recv": 6240}                                        │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│ thr: pkt/s>20.0K byt/s>50.0M syn>500 conn>30.0K src>1000 new/s>2.0K  github.com/0bcu/DDos-Detector │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- status banner: green **NORMAL**, red **UNDER ATTACK**
-- interface table with rates per second (rows turn red over threshold)
-- TCP state table with inline `SYN flood` markers
-- summary cards: connections, new conn/s, distinct source IPs (tcp/udp)
-- threshold fields + sampling interval editable while running
-- **START / STOP** button controls the sampler thread
+- status dot: green **● NORMAL**, red **● UNDER ATTACK**
+- utilization gauges per interface, rows turn red over threshold
+- TCP state table with inline `⚠ SYN flood` markers
+- recent alert feed with timestamps and JSON payloads
+- footer always shows the project link and current thresholds
 
-Tkinter ships with Python — no extra install.
+The layout adapts to the terminal width (80+ columns) and works in any
+terminal emulator.
 
 ---
 

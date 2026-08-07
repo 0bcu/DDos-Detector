@@ -22,6 +22,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import time
@@ -257,80 +258,185 @@ class Detector:
 
 
 # ---------------------------------------------------------------------------
-# rendering
+# rendering - advanced terminal UI
 # ---------------------------------------------------------------------------
+
+VERSION = "1.1"
+GITHUB = "github.com/0bcu/DDos-Detector"
+
+TL, TR, BL, BR = "\u250c", "\u2510", "\u2514", "\u2518"
+H, V = "\u2500", "\u2502"
+TEE_L, TEE_R, TEE_U = "\u251c", "\u2524", "\u252c"
+FILL, EMPTY = "\u2588", "\u2591"
+
+CYAN_B = f"\033[96;1m"
+ACCENT = f"\033[95;1m"
+
 
 def _align(text, width):
     text = str(text)
     return text[:width].ljust(width)
 
 
+def _top_line(title, width, accent=None):
+    title = f" {title} " if title else ""
+    left = (width - len(_visible(title)) - 2) // 2
+    right = width - len(_visible(title)) - 2 - left
+    c = accent or CYAN_B
+    return f"{c}{TL}{H * left}{RESET}{c}{BOLD}{title}{RESET}{c}{H * right}{TR}{RESET}"
+
+
+def _mid_line(width, accent=None):
+    c = accent or CYAN_B
+    return f"{c}{TEE_L}{H * (width - 2)}{TEE_R}{RESET}"
+
+
+def _bot_line(width, accent=None):
+    c = accent or CYAN_B
+    return f"{c}{BL}{H * (width - 2)}{BR}{RESET}"
+
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _visible(text):
+    return ANSI_RE.sub("", text)
+
+
+def _row(content, width):
+    pad = width - 2 - len(_visible(content))
+    if pad < 0:
+        pad = 0
+    return f"{V}{content}{' ' * pad}{V}"
+
+
+def _gauge(value, max_value, width=14):
+    max_value = max(max_value, 1)
+    filled = int((value / max_value) * width)
+    filled = max(0, min(width, filled))
+    over = value > max_value
+    color = RED if over else (YELLOW if filled >= width * 0.7 else "")
+    bar = f"{color}{FILL * filled}{RESET}{DIM}{EMPTY * (width - filled)}{RESET}"
+    return bar
+
+
 def render_dashboard(d, cur, findings):
     columns, _ = shutil.get_terminal_size((100, 24))
-    lines = [f"{BOLD}DDoS DETECTOR{RESET} "
-             f"{DIM}sampling every {d.interval}s | thresholds: "
-             f"pkt/s>{human_num(d.pkt_thr)} bytes/s>{human_num(d.byte_thr)} "
-             f"syn>{d.syn_thr} conn>{human_num(d.conn_thr)} "
-             f"src>{d.src_thr} new/s>{human_num(d.newconn_thr)}{RESET}"]
+    width = max(80, min(columns, 110))
+    lines = []
 
+    # -------------------------------------------------------------- header
+    lines.append(_top_line(f"{BOLD}DDoS DETECTOR{RESET} {DIM}v{VERSION}{RESET}",
+                           width))
+    lines.append(_row(f"{DIM}{_align(GITHUB, 36)}{RESET}"
+                      f"{_align('sampling every ' + str(d.interval) + 's', 20)}", width))
+
+    # --------------------------------------------------------------- status
     under_attack = bool(findings)
-    status = (f"{RED}{BOLD}UNDER ATTACK{RESET}"
-              if under_attack else f"{GREEN}NORMAL{RESET}")
-    lines.append(f"status: {status}   "
-                 f"{DIM}press Ctrl-C to stop{RESET}\n")
+    status = (f"{RED}{BOLD}\u25cf UNDER ATTACK{RESET}"
+              if under_attack else f"{GREEN}{BOLD}\u25cf NORMAL{RESET}")
+    new_conn = ((cur["connections"] - d.prev["connections"]) / d.interval)
+    lines.append(_mid_line(width))
+    lines.append(_row(f" {_align(status, 26)}"
+                      f"{DIM}{_align('connections', 13)}{RESET}{_align(human_num(cur['connections']), 10)}", width))
+    lines.append(_row(f" {DIM}{_align('new conn/s', 26)}{RESET}{_align(human_num(new_conn), 12)}", width))
+    lines.append(_row(f" {DIM}{_align('distinct src ip', 26)}{RESET}"
+                      f"{_align(cur['src_total'], 12)}{DIM}({cur['tcp_src']} tcp / {cur['udp_src']} udp){RESET}", width))
 
+    # ------------------------------------------------------------ interfaces
+    lines.append(_mid_line(width))
+    head = (f"{CYAN_B}{BOLD}{_align('interface', 14)}{RESET}"
+            f"{DIM}{_align('rx pkt/s', 9)} {_align('tx pkt/s', 9)} "
+            f"{_align('rx/s', 9)} {_align('tx/s', 9)} {_align('drop/s', 8)}{RESET}")
+    lines.append(_row(head, width))
     if not cur["dev"]:
-        lines.append(f"{RED}no monitored interfaces{RESET}")
-    else:
-        lines.append(f"{BOLD}{_align('interface', 12)} {_align('rx pkt/s', 10)} "
-                     f"{_align('tx pkt/s', 10)} {_align('rx/s', 9)} {_align('tx/s', 9)} "
-                     f"{_align('drop/s', 9)}{RESET}")
-        for iface, c in cur["dev"].items():
-            if d.iface and iface != d.iface:
-                continue
-            p = d.prev["dev"].get(iface)
-            rx_pkt = tx_pkt = rx_byte = tx_byte = drop = 0.0
-            if p:
-                rx_pkt = d._rate(cur["ts"], d.prev["ts"], p["rx_packets"], c["rx_packets"])
-                tx_pkt = d._rate(cur["ts"], d.prev["ts"], p["tx_packets"], c["tx_packets"])
-                rx_byte = d._rate(cur["ts"], d.prev["ts"], p["rx_bytes"], c["rx_bytes"])
-                tx_byte = d._rate(cur["ts"], d.prev["ts"], p["tx_bytes"], c["tx_bytes"])
-                drop = d._rate(cur["ts"], d.prev["ts"], p["rx_drop"], c["rx_drop"])
-            hit = rx_pkt + tx_pkt > d.pkt_thr or rx_byte + tx_byte > d.byte_thr
-            color = RED if hit else ""
-            line = (f"{_align(iface, 12)} {_align(human_num(rx_pkt), 10)} "
-                    f"{_align(human_num(tx_pkt), 10)} {_align(human_bytes(rx_byte), 9)} "
-                    f"{_align(human_bytes(tx_byte), 9)} {_align(human_num(drop), 9)}")
-            lines.append(colored(line, color))
+        lines.append(_row(f"{RED}no monitored interfaces{RESET}", width))
+    for iface, c in cur["dev"].items():
+        if d.iface and iface != d.iface:
+            continue
+        p = d.prev["dev"].get(iface)
+        rx_pkt = tx_pkt = rx_byte = tx_byte = drop = 0.0
+        if p:
+            rx_pkt = d._rate(cur["ts"], d.prev["ts"], p["rx_packets"], c["rx_packets"])
+            tx_pkt = d._rate(cur["ts"], d.prev["ts"], p["tx_packets"], c["tx_packets"])
+            rx_byte = d._rate(cur["ts"], d.prev["ts"], p["rx_bytes"], c["rx_bytes"])
+            tx_byte = d._rate(cur["ts"], d.prev["ts"], p["tx_bytes"], c["tx_bytes"])
+            drop = d._rate(cur["ts"], d.prev["ts"], p["rx_drop"], c["rx_drop"])
+        hit = rx_pkt + tx_pkt > d.pkt_thr or rx_byte + tx_byte > d.byte_thr
+        name = _align(iface, 14)
+        gauge = _gauge(rx_pkt + tx_pkt, d.pkt_thr, 10)
+        if hit:
+            name = f"{RED}{BOLD}{_align(iface, 14)}{RESET}"
+            rx_pkt_s = f"{RED}{BOLD}{_align(human_num(rx_pkt), 9)}{RESET}"
+            tx_pkt_s = f"{RED}{BOLD}{_align(human_num(tx_pkt), 9)}{RESET}"
+            rx_b_s = f"{RED}{BOLD}{_align(human_bytes(rx_byte), 9)}{RESET}"
+            tx_b_s = f"{RED}{BOLD}{_align(human_bytes(tx_byte), 9)}{RESET}"
+        else:
+            rx_pkt_s = tx_pkt_s = rx_b_s = tx_b_s = ""
+            rx_pkt_s = f"{DIM}{_align(human_num(rx_pkt), 9)}{RESET} "
+            tx_pkt_s = f"{_align(human_num(tx_pkt), 9)} "
+            rx_b_s = f"{_align(human_bytes(rx_byte), 9)} "
+            tx_b_s = f"{_align(human_bytes(tx_byte), 9)} "
+        line = (f" {name} {gauge} "
+                f"{rx_pkt_s}{tx_pkt_s}{rx_b_s}{tx_b_s}"
+                f"{_align(human_num(drop), 8)}")
+        lines.append(_row(line, width))
 
-    lines.append("")
-    lines.append(f"{BOLD}{_align('tcp state', 14)} {_align('count', 8)}  note{RESET}")
+    # ------------------------------------------------------------ tcp states
+    lines.append(_mid_line(width))
+    head = (f"{CYAN_B}{BOLD}{_align('tcp state', 16)}{RESET}"
+            f"{DIM}{_align('count', 9)}  note{RESET}")
+    lines.append(_row(head, width))
     for state in LOG_STATES + ("LISTEN",):
         count = cur["states"].get(state, 0)
         note = ""
         color = ""
         if state == "SYN_RECV" and count > d.syn_thr:
-            color, note = RED, f"  {BOLD}SYN flood{RESET}"
-        lines.append(colored(
-            f"{_align(state, 14)} {_align(human_num(count), 8)} {note}", color))
+            color = RED
+            note = f"{RED}{BOLD}\u26a0 SYN flood{RESET}"
+        line = (f"{color}{_align(state, 16)}{RESET} "
+                f"{_align(human_num(count), 9)}  {note}")
+        lines.append(_row(line, width))
 
-    lines.append("")
-    lines.append(f"{_align('connections', 14)} {human_num(cur['connections'])}")
-    lines.append(f"{_align('new conn/s', 14)} {human_num((cur['connections'] - d.prev['connections']) / d.interval)}")
-    lines.append(f"{_align('distinct src ip', 14)} {cur['src_total']} "
-                 f"({cur['tcp_src']} tcp / {cur['udp_src']} udp)")
-
+    # ---------------------------------------------------------------- alerts
+    lines.append(_mid_line(width))
     if d.alerts:
-        lines.append("")
-        lines.append(f"{BOLD}{RED}recent alerts{RESET}")
+        lines.append(_row(f"{RED}{BOLD}  recent alerts{RESET}", width))
         for a in list(d.alerts)[:4]:
             ts = time.strftime("%H:%M:%S", time.localtime(a["ts"]))
-            lines.append(f"  {DIM}{ts}{RESET} {RED}{BOLD}{a['kind']}{RESET} {json.dumps(a, default=str)}")
+            entry = (f"  {DIM}{ts}{RESET} {RED}{BOLD}{_align(a['kind'].upper(), 12)}{RESET}"
+                     f"{DIM}{json.dumps({k: v for k, v in a.items() if k not in ('ts', 'kind')}, default=str)}{RESET}")
+            lines.append(_row(entry, width))
+    else:
+        lines.append(_row(f"{DIM}  no alerts{RESET}", width))
 
-    width = min(columns, 110)
+    # ---------------------------------------------------------------- footer
+    thr_segs = [
+        f"{DIM}pkt/s>{human_num(d.pkt_thr)}{RESET}",
+        f"{DIM}byt/s>{human_num(d.byte_thr)}{RESET}",
+        f"{DIM}syn>{d.syn_thr}{RESET}",
+        f"{DIM}conn>{human_num(d.conn_thr)}{RESET}",
+        f"{DIM}src>{d.src_thr}{RESET}",
+        f"{DIM}new/s>{human_num(d.newconn_thr)}{RESET}",
+    ]
+    github_seg = f"{ACCENT}{GITHUB}{RESET}"
+    hint_seg = f"{CYAN_B}Ctrl-C to quit{RESET}"
+    segs = list(thr_segs) + [github_seg, hint_seg]
+    footer = f"thr: {' '.join(segs)}"
+    while len(_visible(footer)) > width - 2 and len(segs) > 1:
+        if segs[-1] == hint_seg:
+            segs.pop()
+        elif len(segs) > 2:
+            segs.pop(-2)
+        else:
+            break
+        footer = f"thr: {' '.join(segs)}"
+    lines.append(_row(footer, width))
+    lines.append(_bot_line(width))
+
     body = "\n".join(lines)
     if sys.stdout.isatty():
-        sys.stdout.write(CLEAR + body + ERASE + "\n")
+        sys.stdout.write(CLEAR + body + "\n")
     else:
         sys.stdout.write(body + "\n")
     sys.stdout.flush()
