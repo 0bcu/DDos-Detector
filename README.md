@@ -111,32 +111,44 @@ Alert kinds: `traffic`, `syn_flood`, `conn_flood`, `distributed`,
 
 ## Terminal interface
 
-The default run draws a full-screen terminal dashboard with box-drawing
-borders, per-interface utilization gauges and live counters — no external
-tooling, just ANSI output:
+The default run opens the terminal **alternate screen buffer** (like htop
+or btop): a single stable frame that is redrawn in place, so scrolling the
+wheel never leaves duplicated frames, and Ctrl-C restores your shell
+prompt exactly as it was. Neutral gray/white colors, red and green are
+reserved for status and alerts:
 
 ```
-┌────────────────────────────── DDoS DETECTOR v1.1 ───────────────────────────────┐
-│ github.com/0bcu/DDos-Detector          sampling every 1.0s                       │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ ● NORMAL      connections   231                                                  │
-│ new conn/s    14.2                                                                │
-│ distinct src ip  9 (8 tcp / 1 udp)                                                │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ interface      rx pkt/s   tx pkt/s   rx/s      tx/s      drop/s                  │
-│ eth0  ██░░░░░░  1240.1    908.7      2.1 MB    812.4 KB  0                       │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ tcp state      count      note                                                   │
-│ SYN_RECV       6240       ⚠ SYN flood                                             │
-│ ESTABLISHED    87                                                                 │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ recent alerts                                                                     │
-│  23:58:11  SYN_FLOOD    {"syn_recv": 6240}                                        │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ thr: pkt/s>20.0K byt/s>50.0M syn>500 conn>30.0K src>1000 new/s>2.0K  github.com/0bcu/DDos-Detector │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│              /$$$$$$  /$$       /$$$_  $$| $$                        │
+│             | $$$$\ $$| $$$$$$$ /$$$$$$$ /$$   /$$                  │
+│             | $$ $$ $$| $$__  $$ /$$_____/| $$  | $$                 │
+│             | $$\ $$$$| $$  \ $$| $$      | $$  | $$                 │
+│             | $$ \ $$$| $$  | $$| $$      | $$  | $$                 │
+│             |  $$$$$$/| $$$$$$$/|  $$$$$$$|  $$$$$$/                 │
+│              \______/ |_______/ \_______/ \______/                   │
+│D D o S   D E T E C T O R           v1.1                              │
+│ github.com/0bcu/DDos-Detector       sampling every 1.0s              │
+├──────────────────────────────────────────────────────────────────────┤
+│ ● NORMAL      connections   231                                      │
+│ new conn/s    14.2                                                    │
+│ distinct src ip  9 (8 tcp / 1 udp)                                    │
+├──────────────────────────────────────────────────────────────────────┤
+│ interface      rx pkt/s   tx pkt/s   rx/s      tx/s      drop/s      │
+│ eth0  ██░░░░░░  1240.1    908.7      2.1 MB    812.4 KB  0           │
+├──────────────────────────────────────────────────────────────────────┤
+│ tcp state      count      note                                       │
+│ SYN_RECV       6240       ⚠ SYN flood                                │
+│ ESTABLISHED    87                                                     │
+├──────────────────────────────────────────────────────────────────────┤
+│ recent alerts                                                         │
+│  23:58:11  SYN_FLOOD    {"syn_recv": 6240}                            │
+├──────────────────────────────────────────────────────────────────────┤
+│ thr: pkt/s>20.0K byt/s>50.0M syn>500 conn>30.0K  github.com/0bcu/DDos-Detector │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
+- ASCII banner rendered in the header (≥80 columns), hidden on narrow
+  terminals to avoid overflow
 - status dot: green **● NORMAL**, red **● UNDER ATTACK**
 - utilization gauges per interface, rows turn red over threshold
 - TCP state table with inline `⚠ SYN flood` markers

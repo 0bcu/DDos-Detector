@@ -55,16 +55,15 @@ BOLD = "\033[1m"
 RED = "\033[91m"
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
-CYAN = "\033[96m"
 DIM = "\033[90m"
-CLEAR = "\033[2J\033[H"
-ERASE = "\033[K"
+HOME = "\033[H"
+ERASE_DOWN = "\033[J"
+ALT_ENTER = "\033[?1049h"
+ALT_EXIT = "\033[?1049l"
+HIDE_CURSOR = "\033[?25l"
+SHOW_CURSOR = "\033[?25h"
 
 log = logging.getLogger("ddos")
-
-
-def colored(text, color):
-    return f"{color}{text}{RESET}" if sys.stdout.isatty() else text
 
 
 # ---------------------------------------------------------------------------
@@ -264,13 +263,23 @@ class Detector:
 VERSION = "1.1"
 GITHUB = "github.com/0bcu/DDos-Detector"
 
+BANNER = [
+    "  /$$$$$$  /$$                           /$$$_  $$| $$",
+    "| $$$$\\ $$| $$$$$$$   /$$$$$$$ /$$   /$$",
+    "| $$ $$ $$| $$__  $$ /$$_____/| $$  | $$",
+    "| $$\\ $$$$| $$  \\ $$| $$      | $$  | $$",
+    "| $$ \\ $$$| $$  | $$| $$      | $$  | $$",
+    "|  $$$$$$/| $$$$$$$/|  $$$$$$$|  $$$$$$/",
+    " \\______/ |_______/  \\_______/ \\______/",
+]
+
 TL, TR, BL, BR = "\u250c", "\u2510", "\u2514", "\u2518"
 H, V = "\u2500", "\u2502"
 TEE_L, TEE_R, TEE_U = "\u251c", "\u2524", "\u252c"
 FILL, EMPTY = "\u2588", "\u2591"
 
-CYAN_B = f"\033[96;1m"
-ACCENT = f"\033[95;1m"
+CYAN_B = DIM
+ACCENT = BOLD
 
 
 def _align(text, width):
@@ -326,8 +335,14 @@ def render_dashboard(d, cur, findings):
     lines = []
 
     # -------------------------------------------------------------- header
-    lines.append(_top_line(f"{BOLD}DDoS DETECTOR{RESET} {DIM}v{VERSION}{RESET}",
-                           width))
+    lines.append(_top_line("", width))
+    if width >= 80:
+        for art in BANNER:
+            art = art.rstrip()
+            pad = (width - 2 - len(art)) // 2
+            lines.append(_row(f"{DIM}{' ' * max(pad, 0)}{art}{RESET}", width))
+    lines.append(_row(f"{BOLD}{_align('D D o S   D E T E C T O R', 36)}{RESET}"
+                      f"{DIM}v{VERSION}{RESET}", width))
     lines.append(_row(f"{DIM}{_align(GITHUB, 36)}{RESET}"
                       f"{_align('sampling every ' + str(d.interval) + 's', 20)}", width))
 
@@ -436,7 +451,7 @@ def render_dashboard(d, cur, findings):
 
     body = "\n".join(lines)
     if sys.stdout.isatty():
-        sys.stdout.write(CLEAR + body + "\n")
+        sys.stdout.write(HOME + body + "\n" + ERASE_DOWN)
     else:
         sys.stdout.write(body + "\n")
     sys.stdout.flush()
@@ -484,15 +499,23 @@ def main():
                  syn_thr=args.syn_thr, conn_thr=args.conn_thr,
                  src_thr=args.src_thr, newconn_thr=args.newconn_thr,
                  interval=args.interval, json_out=out)
+    dashboard = sys.stdout.isatty() and not args.no_dashboard
+    if dashboard:
+        sys.stdout.write(ALT_ENTER + HIDE_CURSOR)
+        sys.stdout.flush()
     try:
         log.info("DDoS detector started (interval=%ss)", args.interval)
-        if not sys.stdout.isatty() or args.no_dashboard:
+        if not dashboard:
             d.render = lambda self, cur, findings: None
         d.run()
     except KeyboardInterrupt:
-        print()
+        if dashboard:
+            sys.stdout.write("\n" + RESET)
         log.info("stopped")
     finally:
+        if dashboard:
+            sys.stdout.write(SHOW_CURSOR + ALT_EXIT)
+            sys.stdout.flush()
         if out:
             out.close()
 
