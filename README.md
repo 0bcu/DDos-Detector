@@ -1,6 +1,4 @@
-<div align="center">
-
-```
+```text
     /$$$$$$  /$$
    /$$$_  $$| $$
   | $$$$\ $$| $$$$$$$   /$$$$$$$ /$$   /$$
@@ -14,10 +12,6 @@
 # DDos Detector
 
 Passive flood detection for Linux — no dependencies, no root required.
-
-</div>
-
----
 
 ## What it is
 
